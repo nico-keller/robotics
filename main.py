@@ -5,11 +5,123 @@ import numpy as np
 import math
 from ultralytics import YOLO
 
-motion_detected = False
-motion_last_detected = time.time()
+# Robot class for control and manipulation
+class Robot():
+    def __init__(self):
+        self.BASE_URL = "https://api.interactions.ics.unisg.ch/pretendabot4"
+        self.CONNECT = "/operator"
+        self.MOVE = "/tcp/target"
+        self.ROTATE = "/tcp/target"
+        self.TOGGLE = "/gripper"
+        self.TOKEN = ""
+        self.LOG_OFF = "/operator/"
+        self.gripper_default = None
+        self.x = None
+        self.y = None
+        self.z = None
+        self.roll = None
+        self.pitch = None
+        self.yaw = None
+        self.angleChange = 0
+
+    def data(self):
+        url = self.BASE_URL + "/tcp"
+        time.sleep(1)
+        response = (requests.get(url, headers={"Authentication": self.TOKEN}))
+        if response.status_code == 200:
+            time.sleep(1)
+            self.x = (response.json())["coordinate"]["x"]
+            self.y = (response.json())["coordinate"]['y']
+            self.z = (response.json())["coordinate"]['z']
+            self.roll = (response.json())["rotation"]['roll']
+            self.pitch = (response.json())["rotation"]['pitch']
+            self.yaw = (response.json())["rotation"]['yaw']
+            print("Current Position:", self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
+        else:
+            print("Failed to connect to the robot. Status code:", response.status_code)
+
+    def connect(self):
+        url = self.BASE_URL + self.CONNECT
+        user = {"name": "test", "email": "test@student.unisg.ch"}
+        response = requests.post(url, json=user)
+        if response.status_code == 200:
+            time.sleep(1)
+            self.TOKEN = ((requests.get(url)).json())["token"]
+            print("Successfully connected to the robot!")
+            self.data()
+            time.sleep(1)
+        else:
+            print("Failed to connect to the robot. Status code:", response.status_code)
+
+    def cart2pol(self, x, y):
+        rho = np.sqrt(x ** 2 + y ** 2)
+        phi = np.arctan2(y, x)
+        return (rho, phi)
+
+    def pol2cart(self, rho, phi):
+        x = rho * np.cos(phi)
+        y = rho * np.sin(phi)
+        return (x, y)
+
+    def move(self, distance):
+        url = self.BASE_URL + self.MOVE
+        rho, phi = self.cart2pol(self.x, self.y)
+        x_new, y_new = self.pol2cart(rho + distance, phi)
+        new_pos = {"target": {"coordinate": {"x": x_new, "y": y_new, "z": self.z},
+                              "rotation": {"roll": self.roll, "pitch": self.pitch, "yaw": self.yaw}}, "speed": 50}
+        response = requests.put(url, json=new_pos, headers={"Authentication": self.TOKEN})
+        time.sleep(1)
+        if response.status_code == 200:
+            print("Successfully moved the robot", distance, "units!")
+            self.data()
+        else:
+            print("Failed to move the robot. Status code:", response.status_code)
+
+    def rotate(self, angle):
+        url = self.BASE_URL + self.ROTATE
+        self.angleChange += angle
+        angle1 = angle % 360
+        angle2 = np.radians(angle1)
+        sin_angle = np.sin(angle2)
+        cos_angle = np.cos(angle2)
+        x_new = self.x * cos_angle - self.y * sin_angle
+        y_new = self.x * sin_angle + self.y * cos_angle
+        if self.angleChange == 0:
+            y_new = 0
+        yaw_new = self.yaw + angle
+        new_pos = {"target": {"coordinate": {"x": x_new, "y": y_new, "z": self.z},
+                              "rotation": {"roll": self.roll, "pitch": self.pitch, "yaw": yaw_new}}, "speed": 50}
+        time.sleep(1)
+        response = requests.put(url, json=new_pos, headers={"Authentication": self.TOKEN})
+        if response.status_code == 200:
+            print("Successfully rotated the robot", angle, "degrees!")
+            self.data()
+        else:
+            print("Failed to rotate the robot. Status code:", response.status_code)
+
+    def toggle(self):
+        url = self.BASE_URL + self.TOGGLE
+        cur = (requests.get(url, headers={"Authentication": self.TOKEN}))
+        new_gripper = 100 if cur.json() == 0 else 0
+        time.sleep(1)
+        response = requests.put(url, json=new_gripper, headers={"Authentication": self.TOKEN})
+        if response.status_code == 200:
+            print("Successfully toggled the gripper!")
+        else:
+            print("Failed to toggle the gripper. Status code:", response.status_code)
+
+    def log_off(self):
+        url = self.BASE_URL + self.LOG_OFF + self.TOKEN
+        requests.put(self.BASE_URL + "/initialize", headers={"Authentication": self.TOKEN})
+        time.sleep(1)
+        response = requests.delete(url)
+        if response.status_code == 200:
+            print("Successfully logged off from the robot!")
+        else:
+            print("Failed to log off from the robot. Status code:", response.status_code)
+
 
 model = YOLO('yolov8s.pt')
-
 
 def detect_objects(frame):
     results = model.predict(source=frame, imgsz=640)
@@ -22,130 +134,94 @@ def detect_objects(frame):
         center_y = int((y1 + y2) / 2)
         width = int(x2 - x1)
         height = int(y2 - y1)
-
-        boxes.append({
-            "class_id": class_id,
-            "confidence": confidence,
-            "box": (center_x, center_y, width, height)
-        })
+        boxes.append({"class_id": class_id, "confidence": confidence, "box": (center_x, center_y, width, height)})
     return boxes
-
-def detect_motion():
-    global motion_detected, motion_last_detected
-    cap = cv2.VideoCapture(0)
-    _, frame1 = cap.read()
-    _, frame2 = cap.read()
-
-    diff = cv2.absdiff(frame1, frame2)
-    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, thresh = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if contours:
-        motion_detected = True
-        motion_last_detected = time.time()
-    else:
-        motion_detected = False
-
-    cap.release()
-
-def check_no_motion_interval():
-    detect_motion()
-    if not motion_detected and (time.time() - motion_last_detected) >= 180:
-        organize_items()
-
-def set_gripper(open_value):
-    payload = {"value": open_value}
-    response = requests.put("https://api.interactions.ics.unisg.ch/pretendabot3/gripper", json=payload)
-    if response.status_code == 200:
-        print(f"Gripper set to {open_value}")
-    else:
-        print("Failed to set gripper.")
-
-placement_map = {
-    0: {"x": 100, "y": 200, "z": 50},  # Pen
-    1: {"x": 150, "y": 250, "z": 50},  # Notebook
-}
-
-def decide_placement(item):
-    return placement_map.get(item["class_id"], {"x": 200, "y": 300, "z": 50})
-
-def get_current_objects():
-    cap = cv2.VideoCapture(1)
-    ret, frame = cap.read()
-    if not ret:
-        return None
-    boxes = detect_objects(frame)
-    cap.release()
-    return boxes
-
-def cartesian_to_polar(x, y, z):
-    r = math.sqrt(x ** 2 + y ** 2)
-    theta = math.degrees(math.atan2(y, x))
-    return {"radius": r, "angle": theta, "height": z}
-
 
 transformation_matrix = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 1]])
 
 def pixel_to_real(x_pixel, y_pixel):
     pixel_coords = np.array([x_pixel, y_pixel, 1])
     real_coords = np.dot(transformation_matrix, pixel_coords)
-    return {"x": real_coords[0] / real_coords[2], "y": real_coords[1] / real_coords[2], "z": 50}
+
+    x_real = real_coords[0] / real_coords[2]
+    y_real = real_coords[1] / real_coords[2]
+    z_real = 50
+
+    return x_real, y_real, z_real
 
 
-
-def initialize_robot():
-    response = requests.put("https://api.interactions.ics.unisg.ch/pretendabot3/initialize")
-    if response.status_code == 202:
-        print("Robot initialized to original state.")
-    else:
-        print("Failed to initialize the robot.")
+def calculate_distance(x1, y1, x2, y2):
+    distance = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return distance
 
 
-def move_to_target(cartesian_position, target_rotation, speed=50):
-    polar_position = cartesian_to_polar(cartesian_position["x"], cartesian_position["y"], cartesian_position["z"])
-    payload = {
-        "target": {
-            "polar_coordinate": {
-                "radius": polar_position["radius"],
-                "angle": polar_position["angle"],
-                "height": polar_position["height"]
-            },
-            "rotation": target_rotation
-        },
-        "speed": speed
-    }
-    response = requests.put("https://api.interactions.ics.unisg.ch/pretendabot3/tcp/target", json=payload)
-    if response.status_code == 200:
-        print(f"Moving to target in polar coordinates: {polar_position} at speed {speed}")
-    else:
-        print("Failed to set target position.")
+# Dictionary mapping class IDs to specific target coordinates for organization
+placement_map = {
+    0: {"x": 100, "y": 200, "z": 50},  # Example position for class ID 0, e.g., 'pen'
+    1: {"x": 150, "y": 250, "z": 50},  # Example position for class ID 1, e.g., 'notebook'
+    # Add additional items here as needed
+}
 
 
-def organize_items():
-    initialize_robot()
-    objects = get_current_objects()
-    if not objects:
-        print("No objects detected.")
-        return
-    for obj in objects:
-        x_pixel, y_pixel, _, _ = obj["box"]
-        obj_position = pixel_to_real(x_pixel, y_pixel)
-        polar_position = cartesian_to_polar(obj_position["x"], obj_position["y"], obj_position["z"])
-        target_rotation = {"roll": 180, "pitch": 0, "yaw": 0}
-        move_to_target(polar_position, target_rotation)
-        set_gripper(0)
-        target_position = decide_placement(obj)
-        target_polar_position = cartesian_to_polar(target_position["x"], target_position["y"], target_position["z"])
-        move_to_target(target_polar_position, target_rotation)
-        set_gripper(20)
+def decide_placement(obj):
+    class_id = obj["class_id"]
+
+    target_position = placement_map.get(class_id, {"x": 200, "y": 300, "z": 50})
+    return target_position
 
 
-def main():
+def main_loop(robo):
+    robo.connect()
+
+    last_activity = time.time()
+
     while True:
-        check_no_motion_interval()
-        time.sleep(5)
+        ret, frame = cv2.VideoCapture(0).read()
+        if not ret:
+            break
+
+        objects = detect_objects(frame)
+
+        for obj in objects:
+            x, y, z = obj['box'][0], obj['box'][1], 50
+            robo.move(distance=10)
+            robo.rotate(angle=30)
+            robo.toggle()
+
+        if time.time() - last_activity > 180:
+            print("No activity detected, organizing...")
+
+            cap = cv2.VideoCapture(0)
+            ret, frame = cap.read()
+            if ret:
+                objects = detect_objects(frame)
+            else:
+                print("Error: Unable to capture frame for object detection.")
+                objects = []
+            cap.release()
+
+            for obj in objects:
+                x_pixel, y_pixel, _, _ = obj["box"]
+                x_cartesian, y_cartesian, z_cartesian = pixel_to_real(x_pixel,
+                                                                      y_pixel)
+
+                # Move robot to object's location and pick it up
+                robo.move(distance=10)
+                robo.toggle()
+
+                target_position = decide_placement(obj)
+                target_distance = calculate_distance(robo.x, robo.y, target_position["x"],
+                                                     target_position["y"])
+                robo.move(target_distance)
+                robo.toggle()
+
+            last_activity = time.time()
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    robo.log_off()
 
 
-main()
+robo = Robot()
+main_loop(robo)
