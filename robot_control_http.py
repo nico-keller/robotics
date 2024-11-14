@@ -41,7 +41,7 @@ class robot():
 
     def connect(self):
         url = self.BASE_URL + self.CONNECT
-        user = {"name": "Joseph Kaats", "email": "joseph.kaats@student.unisg.ch"}
+        user = {"name": "test", "email": "test@student.unisg.ch"}
         response = requests.post(url, json=user)
         if response.status_code == 200:
             time.sleep(1)
@@ -58,6 +58,7 @@ class robot():
     def cart2pol(self, x, y):
         rho = np.sqrt(x ** 2 + y ** 2)
         phi = np.arctan2(y, x)
+        print(rho, phi)
         return (rho, phi)
 
     # polar to carthesian conversion
@@ -66,17 +67,17 @@ class robot():
         y = rho * np.sin(phi)
         return (x, y)
 
-    def move(self, distance):
+    def move(self, x_target, y_target):
         url = self.BASE_URL + self.MOVE
-        rho, phi = self.cart2pol(self.x, self.y)
-        x_new, y_new = self.pol2cart(rho + distance, phi)
-        new_pos = {"target": {"coordinate": {"x": x_new, "y": y_new, "z": self.z},
+        rho, phi = self.cart2pol(x_target, y_target)
+        x_new, y_new = self.pol2cart(rho, phi)
+        new_pos = {"target": {"coordinate": {"x": x_new, "y": y_new},
                               "rotation": {"roll": self.roll, "pitch": self.pitch, "yaw": self.yaw}}, "speed": 50}
         response = requests.put(url, json=new_pos, headers={"Authentication": self.TOKEN})
         time.sleep(1)
         if response.status_code == 200:
-            print("Successfully moved the robot", distance, "units!")
-            # update positions
+            print(
+                f"Successfully moved the robot to polar coordinates: radius={rho:.2f}, angle={np.degrees(phi):.2f}")            # update positions
             self.data()
         else:
             print("Failed to move the robot. Status code:", response.status_code)
@@ -137,19 +138,30 @@ class robot():
 
     def main(self):
         while True:
-            # recieve input, if parameters length of parts is 2; ask again if format/command is false
             command = input("Command: ")
             parts = command.split()
-            if len(parts) == 2:
-                command_name, param = parts
+            if len(parts) == 3:
+                command_name, x, y = parts
                 if command_name == "move":
-                    distance = int(param)
-                    self.move(distance)
-                elif command_name == "rotate":
-                    angle = int(param)
-                    self.rotate(angle)
+                    try:
+                        # Convert x, y, z to float and call move with these parameters
+                        x = float(x)
+                        y = float(y)
+                        self.move(x, y)
+                    except ValueError:
+                        print("Invalid coordinates. Please enter numeric values for x, y.")
                 else:
-                    print("Invalid command")
+                    print("Invalid command. Use `move x y` for Cartesian movement.")
+            elif len(parts) == 2:
+                command_name, param = parts
+                if command_name == "rotate":
+                    try:
+                        angle = int(param)
+                        self.rotate(angle)
+                    except ValueError:
+                        print("Invalid angle. Please enter an integer value.")
+                else:
+                    print("Invalid command. Use `rotate angle` to rotate the robot.")
             elif len(parts) == 1:
                 command_name = parts[0]
                 if command_name == "connect":
