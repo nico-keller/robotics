@@ -79,7 +79,7 @@ class Robot:
                     "yaw": 0
                 }
             },
-            "speed": 50
+            "speed": 125
         }
 
         response = requests.put(url, json=target, headers={"Authentication": self.TOKEN})
@@ -97,7 +97,7 @@ class Robot:
         cur = (requests.get(url, headers={"Authentication": self.TOKEN}))
         # if the gripper is closed, open, otherwise close it
         if cur.json() == 0:
-            new_gripper = 100
+            new_gripper = 200
         else:
             new_gripper = 0
         time.sleep(1)
@@ -140,12 +140,32 @@ class Robot:
         else:
             print("Failed to initialize robot's position. Status code:", response.status_code)
 
-    def grab_and_drop(self):
+    def grab_and_drop_left(self):
         self.move_to_grab_position()
+        time.sleep(2)
         self.lower_for_grab()
+        time.sleep(1)
         self.toggle()
+        time.sleep(2)
         self.lift_object()
-        self.move_to_drop_position()
+        time.sleep(1)
+        self.move_to_drop_position_left()
+        time.sleep(2)
+        self.toggle()
+        print("Grab and drop completed.")
+
+
+    def grab_and_drop_right(self):
+        self.move_to_grab_position()
+        time.sleep(2)
+        self.lower_for_grab()
+        time.sleep(2)
+        self.toggle()
+        time.sleep(2)
+        self.lift_object()
+        time.sleep(2)
+        self.move_to_drop_position_right()
+        time.sleep(1)
         self.toggle()
         print("Grab and drop completed.")
 
@@ -158,7 +178,7 @@ class Robot:
                 "coordinate": {
                     "x": 400,
                     "y": 0,
-                    "z": 150
+                    "z": 15
                 },
                 "rotation": {
                     "roll": 180,
@@ -166,7 +186,7 @@ class Robot:
                     "yaw": 0
                 }
             },
-            "speed": 50
+            "speed": 125
         }
 
         response = requests.put(url, json=target, headers={"Authentication": self.TOKEN})
@@ -188,7 +208,7 @@ class Robot:
                 "coordinate": {
                     "x": 400,
                     "y": 0,
-                    "z": 400
+                    "z": 200
                 },
                 "rotation": {
                     "roll": 180,
@@ -196,7 +216,7 @@ class Robot:
                     "yaw": 0
                 }
             },
-            "speed": 50
+            "speed": 125
         }
 
         response = requests.put(url, json=target, headers={"Authentication": self.TOKEN})
@@ -209,7 +229,7 @@ class Robot:
         else:
             print("Failed to move the robot. Status code:", response.status_code)
 
-    def move_to_drop_position(self):
+    def move_to_drop_position_left(self):
         url = self.BASE_URL + self.MOVE
 
         # Include the current z coordinate in the new position
@@ -218,7 +238,7 @@ class Robot:
                 "coordinate": {
                     "x": 400,
                     "y": 400,
-                    "z": 400
+                    "z": 200
                 },
                 "rotation": {
                     "roll": 180,
@@ -226,7 +246,38 @@ class Robot:
                     "yaw": 0
                 }
             },
-            "speed": 50
+            "speed": 125
+        }
+
+        response = requests.put(url, json=target, headers={"Authentication": self.TOKEN})
+        time.sleep(1)
+        if response.status_code == 200:
+            print(
+                f"Successfully moved the robot")
+            # update positions
+            self.data()
+        else:
+            print("Failed to move the robot. Status code:", response.status_code)
+
+
+    def move_to_drop_position_right(self):
+        url = self.BASE_URL + self.MOVE
+
+        # Include the current z coordinate in the new position
+        target = {
+            "target": {
+                "coordinate": {
+                    "x": 400,
+                    "y": -400,
+                    "z": 200
+                },
+                "rotation": {
+                    "roll": 180,
+                    "pitch": 0,
+                    "yaw": 0
+                }
+            },
+            "speed": 125
         }
 
         response = requests.put(url, json=target, headers={"Authentication": self.TOKEN})
@@ -249,9 +300,12 @@ class Robot:
             print("5. move to grab position")
             print("6. lower forgrab")
             print("7. lift")
-            print("8. move to drop position")
+            print("8. move to drop position left")
+            print("9. move to drop position right")
+            print("10. Complete drag and drop left")
+            print("11. Complete drag and drop right")
 
-            choice = input("Enter your choice (1-8): ")
+            choice = input("Enter your choice (1-11): ")
             if choice == '1':
                 self.connect()
             elif choice == '2':
@@ -268,7 +322,13 @@ class Robot:
             elif choice == '7':
                 self.lift_object()
             elif choice == '8':
-                self.move_to_drop_position()
+                self.move_to_drop_position_left()
+            elif choice == '9':
+                self.move_to_drop_position_right()
+            elif choice == '10':
+                self.grab_and_drop_left()
+            elif choice == '11':
+                self.grab_and_drop_right()
             else:
                 print("Invalid choice. Please select a number between 1 and 8.")
             time.sleep(1)  # Wait for 1 second before processing the next command
@@ -276,3 +336,7 @@ class Robot:
 # create robot instance and run main()
 robo = Robot()
 robo.main()
+
+
+
+
