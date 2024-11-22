@@ -159,13 +159,13 @@ class Robot:
         self.move_to_grab_position()
         time.sleep(2)
         self.lower_for_grab()
-        time.sleep(2)
+        time.sleep(1)
         self.toggle()
         time.sleep(2)
         self.lift_object()
-        time.sleep(2)
-        self.move_to_drop_position_right()
         time.sleep(1)
+        self.move_to_drop_position_right()
+        time.sleep(2)
         self.toggle()
         print("Grab and drop completed.")
 
@@ -237,7 +237,7 @@ class Robot:
             "target": {
                 "coordinate": {
                     "x": 400,
-                    "y": 400,
+                    "y": 500,
                     "z": 200
                 },
                 "rotation": {
@@ -268,7 +268,7 @@ class Robot:
             "target": {
                 "coordinate": {
                     "x": 400,
-                    "y": -400,
+                    "y": -500,
                     "z": 200
                 },
                 "rotation": {
