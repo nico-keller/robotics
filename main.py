@@ -20,13 +20,16 @@ if st.button("Connect to Robot", key="connect_robot"):
     else:
         st.error("Failed to retrieve robot token.")
 
-# Disconnect Button
 if st.button("Disconnect Robot", key="disconnect_robot"):
     if robot.TOKEN:
         robot.log_off()
         st.success("Robot disconnected.")
     else:
         st.error("Robot is not connected or token is missing!")
+
+if st.button("move Robot", key="move"):
+    robot.grab_and_drop((400, 200, 300))
+
 
 # Video Stream
 stream_url = "https://interactions.ics.unisg.ch/61-102/cam5/live-stream"
