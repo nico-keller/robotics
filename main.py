@@ -30,6 +30,9 @@ if st.button("Disconnect Robot", key="disconnect_robot"):
 if st.button("move Robot", key="move"):
     robot.grab_and_drop((400, 200, 300))
 
+if st.button("Recycle", key="recycle"):
+    pass
+
 
 # Video Stream
 stream_url = "https://interactions.ics.unisg.ch/61-102/cam5/live-stream"

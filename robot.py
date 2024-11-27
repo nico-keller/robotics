@@ -1,5 +1,7 @@
 import requests
 import time
+import cv2
+from ultralytics import YOLO
 import numpy as np
 
 # class for robot controls
@@ -20,6 +22,7 @@ class Robot:
         self.pitch = None
         self.yaw = None
         self.angleChange = 0
+        self.model = YOLO("yolov8x.pt")
 
     def _request(self, method, endpoint, data=None):
         url = self.BASE_URL + endpoint
@@ -133,6 +136,57 @@ class Robot:
             self.data()
         else:
             print("Failed to initialize robot's position. Status code:", response.status_code)
+
+    def sort_recycling_materials(self, stream_url):
+        """
+        Detects and sorts recycling materials using the video stream.
+        Moves detected materials to their respective locations.
+        """
+        webcam = cv2.VideoCapture(stream_url)
+        if not webcam.isOpened():
+            print("Error: Unable to open video stream.")
+            return
+
+        while True:
+            ret, frame = webcam.read()
+            if not ret:
+                print("Stream disconnected or unavailable.")
+                break
+
+            # Define a fixed central region for detection
+            height, width, _ = frame.shape
+            center_x, center_y = width // 2, height // 2
+            region_width, region_height = int(width // 8), int(height // 8 * 1.5)
+            x1, y1 = max(center_x - region_width // 2, 0), max(center_y - region_height // 2, 0)
+            x2, y2 = min(center_x + region_width // 2, width), min(center_y + region_height // 2, height)
+            central_region = frame[y1:y2, x1:x2]
+
+            # YOLO detection
+            results = self.model(central_region, conf=0.5)
+            detected_materials = [
+                self.model.names[int(box.cls.item())] for result in results for box in result.boxes
+            ]
+
+            if detected_materials:
+                material = detected_materials[0]  # Use the first detected material
+                print(f"Detected Material: {material}")
+
+                # Perform sorting based on material
+                if material == "plastic":
+                    print("Sorting plastic to the left...")
+                    self.grab_and_drop((400, 200, 300))
+                elif material == "metal":
+                    print("Sorting metal to the right...")
+                    self.grab_and_drop((400, -200, 300))
+                elif material == "glass":
+                    print("Sorting glass forward...")
+                    self.grab_and_drop((500, 0, 300))
+                else:
+                    print(f"Unknown material detected: {material}")
+            else:
+                print("No materials detected.")
+
+        webcam.release()
 
 # move to the left
 # grab_and_drop((400, 200, 300))
