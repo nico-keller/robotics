@@ -134,38 +134,6 @@ class Robot:
         else:
             print("Failed to initialize robot's position. Status code:", response.status_code)
 
-    def main(self):
-        while True:
-            print("\nPlease select an option:")
-            print("1. Connect")
-            print("2. logoff")
-            print("3. initialize")
-            print("4. Toggle the gripper")
-            print("5. left")
-            print("6. right")
-
-            choice = input("Enter your choice (1-11): ")
-            if choice == '1':
-                self.connect()
-            elif choice == '2':
-                self.initialize()
-                self.log_off()
-                break
-            elif choice == '3':
-                self.initialize()
-            elif choice == '4':
-                self.toggle()
-            elif choice == "5":
-                self.grab_and_drop((400, 500, 300))  # Left drop position
-            elif choice == "6":
-                self.grab_and_drop((400, -500, 300))  # Right drop position
-            else:
-                print("Invalid choice. Please select a valid option.")
-            time.sleep(1)  # Wait for 1 second before processing the next command
-
-# create robot instance and run main()
-robo = Robot()
-robo.main()
 
 
 
