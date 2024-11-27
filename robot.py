@@ -134,7 +134,13 @@ class Robot:
         else:
             print("Failed to initialize robot's position. Status code:", response.status_code)
 
+# move to the left
+# grab_and_drop((400, 200, 300))
 
+# move to the right
+# grab_and_drop((400, -200, 300))
 
+# move forward
+# grab_and_drop((500, 0, 300))
 
 
