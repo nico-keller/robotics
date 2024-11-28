@@ -22,7 +22,7 @@ class Robot:
         self.pitch = None
         self.yaw = None
         self.angleChange = 0
-        self.model = YOLO("yolov8x.pt")
+        self.model = YOLO("recycling.pt")
 
     def _request(self, method, endpoint, data=None):
         url = self.BASE_URL + endpoint
