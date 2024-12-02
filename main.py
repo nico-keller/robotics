@@ -1,14 +1,16 @@
 import streamlit as st
 import cv2
+import asyncio
 from ultralytics import YOLO
+import numpy as np
 from robot import Robot
 
-# Initialize Streamlit session state for the robot
+# Initialize Streamlit session state for the robot and frame
 if "robot" not in st.session_state:
     st.session_state.robot = Robot()
 
 robot = st.session_state.robot
-model = YOLO("yolov8x.pt")
+model = YOLO("recycling.pt")
 
 st.title("Recycle Sorting with YOLO and Robotic Arm")
 
@@ -27,28 +29,80 @@ if st.button("Disconnect Robot", key="disconnect_robot"):
     else:
         st.error("Robot is not connected or token is missing!")
 
-if st.button("move Robot", key="move"):
+if st.button("Move Robot", key="move_robot"):
     robot.grab_and_drop((400, 200, 300))
+    st.success("Robot moved successfully!")
 
 if st.button("Recycle", key="recycle"):
-    pass
+    robot.sort_recycling_materials("https://interactions.ics.unisg.ch/61-102/cam5/live-stream")
+    st.write("Recycling in progress...")
 
-
-# Video Stream
 stream_url = "https://interactions.ics.unisg.ch/61-102/cam5/live-stream"
 webcam = cv2.VideoCapture(stream_url)
 
 st.subheader("Live Video Stream")
 stframe = st.empty()
 
-if webcam.isOpened():
+
+async def stream_video():
     while True:
         ret, frame = webcam.read()
         if not ret:
-            st.error("Stream disconnected or unavailable.")
+            stframe.text("Stream disconnected or unavailable.")
             break
+
+        height, width, _ = frame.shape
+
+        center_x, center_y = width // 2, height // 2
+        region_width, region_height = int(width // 6), int(height // 6)
+        shift_x, shift_y = 35, 10
+
+        x1 = center_x - region_width // 2 - shift_x
+        y1 = center_y - region_height // 2 - shift_y
+        x2 = center_x + region_width // 2 - shift_x
+        y2 = center_y + region_height // 2 - shift_y
+
+        x1, y1 = max(x1, 0), max(y1, 0)
+        x2, y2 = min(x2, width), min(y2, height)
+
+        detection_region = frame[y1:y2, x1:x2]
+
+        results = model(detection_region, conf=0.5)
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+
+        for result in results:
+            for box in result.boxes:
+                b = box.xyxy[0].cpu().numpy()
+                b[0] += x1
+                b[1] += y1
+                b[2] += x1
+                b[3] += y1
+                class_id = int(box.cls.item())
+                conf = float(box.conf.item())
+
+                cv2.rectangle(frame,
+                              (int(b[0]), int(b[1])),
+                              (int(b[2]), int(b[3])),
+                              (0, 255, 0),
+                              2)
+
+                label = f"{model.names[class_id]} {conf:.2f}"
+                cv2.putText(frame, label,
+                            (int(b[0]), int(b[1] - 10)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.9,
+                            (0, 255, 0),
+                            2)
+
         stframe.image(frame, channels="BGR", use_container_width=True)
-else:
-    st.error("Unable to open the video stream.")
+        await asyncio.sleep(0.03)  # Control the update rate
+
+
+async def main():
+    await stream_video()
+
+
+asyncio.run(main())
 
 webcam.release()
