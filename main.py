@@ -2,7 +2,6 @@ import streamlit as st
 import cv2
 import asyncio
 from ultralytics import YOLO
-import numpy as np
 from robot import Robot
 
 # Initialize Streamlit session state for the robot and frame
@@ -10,7 +9,7 @@ if "robot" not in st.session_state:
     st.session_state.robot = Robot()
 
 robot = st.session_state.robot
-model = YOLO("recycling.pt")
+models = [YOLO("recycling.pt"), YOLO("yolov8x.pt")]
 
 st.title("Recycle Sorting with YOLO and Robotic Arm")
 
@@ -66,35 +65,50 @@ async def stream_video():
         x2, y2 = min(x2, width), min(y2, height)
 
         detection_region = frame[y1:y2, x1:x2]
+        best_detection = None  # Store the best detection
 
-        results = model(detection_region, conf=0.5)
+        # Process detection region with both models
+        for model in models:
+            results = model(detection_region, conf=0.5)
 
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+            for result in results:
+                for box in result.boxes:
+                    conf = float(box.conf.item())
+                    class_id = int(box.cls.item())
+                    b = box.xyxy[0].cpu().numpy()
+                    b[0] += x1
+                    b[1] += y1
+                    b[2] += x1
+                    b[3] += y1
 
-        for result in results:
-            for box in result.boxes:
-                b = box.xyxy[0].cpu().numpy()
-                b[0] += x1
-                b[1] += y1
-                b[2] += x1
-                b[3] += y1
-                class_id = int(box.cls.item())
-                conf = float(box.conf.item())
+                    if best_detection is None or conf > best_detection['conf']:
+                        best_detection = {
+                            'conf': conf,
+                            'class_id': class_id,
+                            'box': b,
+                            'model_names': model.names
+                        }
 
-                cv2.rectangle(frame,
-                              (int(b[0]), int(b[1])),
-                              (int(b[2]), int(b[3])),
-                              (0, 255, 0),
-                              2)
+        # If there's a best detection, draw it on the frame
+        if best_detection:
+            b = best_detection['box']
+            conf = best_detection['conf']
+            class_id = best_detection['class_id']
+            label = f"{best_detection['model_names'][class_id]} {conf:.2f}"
 
-                label = f"{model.names[class_id]} {conf:.2f}"
-                cv2.putText(frame, label,
-                            (int(b[0]), int(b[1] - 10)),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.9,
-                            (0, 255, 0),
-                            2)
+            cv2.rectangle(frame,
+                          (int(b[0]), int(b[1])),
+                          (int(b[2]), int(b[3])),
+                          (0, 255, 0),
+                          2)
+            cv2.putText(frame, label,
+                        (int(b[0]), int(b[1] - 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.9,
+                        (0, 255, 0),
+                        2)
 
+        # Display the frame
         stframe.image(frame, channels="BGR", use_container_width=True)
         await asyncio.sleep(0.03)  # Control the update rate
 

@@ -21,7 +21,7 @@ class Robot:
         self.pitch = None
         self.yaw = None
         self.angleChange = 0
-        self.model = YOLO("recycling.pt")
+        self.model = [YOLO("recycling.pt"), YOLO("yolov8x.pt")]
 
     def _request(self, method, endpoint, data=None):
         url = self.BASE_URL + endpoint
@@ -104,7 +104,7 @@ class Robot:
     def grab_and_drop(self, drop_position):
         self.move_to_position(400, 0, 300)  # Move to grab position
         time.sleep(2)
-        self.move_to_position(400, 0, 2)  # Lower to grab
+        self.move_to_position(400, 0, 0)  # Lower to grab
         time.sleep(3)
         self.toggle()  # Grab item
         time.sleep(3)
@@ -173,14 +173,21 @@ class Robot:
                         break
                     
                     detection_region = verify_frame[y1:y2, x1:x2]
-                    results = self.model(detection_region, conf=0.5)
-                    
+                    all_results = []
+
+                    # Process detection region with both YOLO models
+                    for model in self.model:
+                        results = model(detection_region, conf=0.5)
+                        all_results.append((model.names, results))
+
                     frame_materials = []
-                    for result in results:
-                        for box in result.boxes:
-                            if float(box.conf.item()) >= 0.5:
-                                frame_materials.append(self.model.names[int(box.cls.item())])
-                    
+                    for model_names, results in all_results:
+                        for result in results:
+                            for box in result.boxes:
+                                if float(box.conf.item()) >= 0.5:
+                                    class_id = int(box.cls.item())
+                                    frame_materials.append(model_names[class_id])
+
                     if frame_materials:
                         detected_materials.append(frame_materials[0])
                     
@@ -204,6 +211,7 @@ class Robot:
                         self.grab_and_drop((500, 0, 300))
                     else:
                         print(f"Unknown material detected: {material}")
+                        self.grab_and_drop((100,200,200))
 
                     time.sleep(3)
 
