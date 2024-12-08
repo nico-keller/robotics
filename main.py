@@ -28,10 +28,6 @@ if st.button("Disconnect Robot", key="disconnect_robot"):
     else:
         st.error("Robot is not connected or token is missing!")
 
-if st.button("Move Robot", key="move_robot"):
-    robot.grab_and_drop((400, 200, 300))
-    st.success("Robot moved successfully!")
-
 if st.button("Recycle", key="recycle"):
     robot.sort_recycling_materials("https://interactions.ics.unisg.ch/61-102/cam5/live-stream")
     st.write("Recycling in progress...")
