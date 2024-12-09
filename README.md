@@ -25,7 +25,7 @@ This project demonstrates a recycling sorting system using a YOLO model for mate
 - `numpy`
 
 ### Hardware
-- A robotic arm with an API endpoint for control
+- A robotic arm with API endpoint for control
 - A camera with live streaming capabilities
 
 ---
@@ -33,12 +33,11 @@ This project demonstrates a recycling sorting system using a YOLO model for mate
 ## Setup and Usage
 
 ### 1. Clone the Repository
-git clone <repository-url> cd <repository-directory>
+git clone <repository-url> 
 
 
 ### 2. Install Dependencies
-Install the required Python libraries:
-
+pip install requirements.txt
 
 ### 3. Run the Application
 Launch the Streamlit app:
@@ -72,11 +71,6 @@ The video stream URL should be configured in the `stream_url` variable. Replace 
 
 ---
 
-## Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request for any improvements or new features.
-
----
 
 ## License
 
